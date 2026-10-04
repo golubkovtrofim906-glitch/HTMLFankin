@@ -179,7 +179,10 @@ function updateChangeKeys(dt){
  h.style.top=(20+Math.cos(elapsed*15)*12)+'%';
 }
 function hit(lane){
- if(!playing||elapsed<12||inBreak)return;
+ // Клавиатура должна работать сразу после запуска игры. Первые секунды
+ // больше не блокируют обработку стрелок/WASD/Numpad. Во время самой
+ // двухсекундной перемены клавиш ввод временно блокируется.
+ if(!playing||inBreak)return;
  const l=document.querySelector(`.lane[data-lane="${lane}"]`);l.classList.add('active');setTimeout(()=>l.classList.remove('active'),100);
  let best=null,dist=Infinity;const laneRect=$('lanes').getBoundingClientRect(),stage=$('stage').getBoundingClientRect(),target=laneRect.top-stage.top+laneRect.height/2;
  for(const n of notes){if(n.lane!==lane)continue;const d=Math.abs(n.y+24-target);if(d<dist){dist=d;best=n;}}
@@ -243,10 +246,10 @@ $('pauseButton').addEventListener('click',pauseGame);
 $('characterSwitch').addEventListener('click',()=>setCharacter(playerCharacter==='bf'?'qt':'bf'));
 $('weekButton').addEventListener('click',begin);
 window.addEventListener('keydown',e=>{
- const key=(e.key||'').toLowerCase();
- const code=e.code||'';
+ const code=String(e.code||'');
+ const key=String(e.key||'').toLowerCase();
 
- // Используем e.code, поэтому клавиши A/S/W/D работают независимо от раскладки.
+ // Pause/menu controls
  if(playing&&(code==='Escape'||code==='Enter')){
    e.preventDefault();
    if(e.repeat)return;
@@ -254,7 +257,6 @@ window.addEventListener('keydown',e=>{
    else pauseGame();
    return;
  }
-
  if(playing&&paused){
    if(code==='ArrowUp'||code==='ArrowDown'){
      e.preventDefault();
@@ -265,32 +267,34 @@ window.addEventListener('keydown',e=>{
    return;
  }
 
+ // Character switch before starting the week
  if(!playing&&(code==='ArrowLeft'||code==='ArrowRight')){
    e.preventDefault();
    if(!e.repeat)setCharacter(code==='ArrowLeft'?'qt':'bf');
    return;
  }
 
+ // Four lanes: arrows, WASD and numpad. e.code is layout-independent.
  const laneByCode={
    ArrowLeft:0, ArrowDown:1, ArrowUp:2, ArrowRight:3,
    KeyA:0, KeyS:1, KeyW:2, KeyD:3,
    Numpad4:0, Numpad2:1, Numpad8:2, Numpad6:3
  };
- const lane=laneByCode[code];
- if(Number.isInteger(lane)){
-   e.preventDefault();
-   hit(lane);
-   return;
+ let lane=laneByCode[code];
+
+ // Fallback for browsers that expose only e.key.
+ if(!Number.isInteger(lane)){
+   const laneByKey={
+     'arrowleft':0,'arrowdown':1,'arrowup':2,'arrowright':3,
+     'a':0,'s':1,'w':2,'d':3,
+     'ц':0,'ы':1,'цук':2
+   };
+   lane=laneByKey[key];
  }
 
- // Резерв для клавиатур/браузеров, которые передают только e.key.
- const laneByKey={
-   'arrowleft':0,'arrowdown':1,'arrowup':2,'arrowright':3,
-   'a':0,'s':1,'w':2,'d':3
- };
- if(Object.prototype.hasOwnProperty.call(laneByKey,key)){
+ if(Number.isInteger(lane)){
    e.preventDefault();
-   hit(laneByKey[key]);
+   if(!e.repeat)hit(lane);
  }
 });
 document.querySelectorAll('.ctrl').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();hit(Number(b.dataset.key));}));document.querySelectorAll('.lane').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();hit(Number(b.dataset.lane));}));
